@@ -9,7 +9,7 @@
 
 ```
 WorkBuddy / Claude Desktop 等客户端
-        │  MCP 协议（stdio JSON-RPC）
+        │  MCP：stdio（本地）或 Streamable HTTP（远程）
         ▼
 mcp-yujian-server (Node.js)
         │  HTTPS
@@ -29,12 +29,19 @@ api.yjnt111.top  /api/member/article/list    ← 搜索/列表（keyword / categ
 
 ```
 mcp-yujian-server/
-├── .env                 # API 地址、token、路径、截断长度（当前 member 端点公开，token 非必需）
-├── .env.example         # 配置模板
-├── package.json         # type:module，scripts: start / smoke
-├── index.js             # MCP stdio 入口，注册两个 tool
-├── smoke-test.js        # JSON-RPC 直连冒烟测试（不经客户端）
-├── mcp-debug.log        # 运行日志（调试唯一出口）
+├── .env                 # 从 .env.example 复制（公开端点 token 可留空；不要写本机路径）
+├── .env.example         # 配置模板：URL、API 相对路径、超时、HTTP 端口
+├── package.json         # type:module；scripts: start / start:http / smoke / smoke:http
+├── index.js             # MCP stdio 入口
+├── http-server.js       # Streamable HTTP 入口（POST /mcp，GET /healthz）
+├── createServer.js      # stdio 与 HTTP 共用的工具注册
+├── smoke-test.js        # stdio JSON-RPC 冒烟（不经客户端）
+├── http-smoke-test.js   # HTTP 冒烟（healthz → initialize → tools → search → detail）
+├── doc/
+│   ├── workbuddy-mcp.md # WorkBuddy / MCP 接入与冒烟
+│   ├── deploy-runbook.md
+│   └── doubao-test.md
+├── mcp-debug.log        # 运行日志（调试唯一出口，不提交）
 ├── tools/
 │   ├── searchPost.js    # 搜索：RuoYi 参数形态，rows/articleId/createTime 映射
 │   └── getPostDetail.js # 详情：data{} 解包，正文清洗截断
@@ -50,28 +57,36 @@ mcp-yujian-server/
 
 ### 2.1 环境要求
 
-- Node.js ≥ 20（本机用托管版：`/Users/mac/.workbuddy/binaries/node/versions/22.22.2-3/bin/node`）
-- 依赖：`@modelcontextprotocol/sdk`、`axios`、`cheerio`、`dotenv`、`zod`
+- Node.js ≥ 20（`node -v`）。仓库和 `.env` 里不要写某一台机器的 Node 绝对路径。
+- 依赖：`@modelcontextprotocol/sdk`、`axios`、`cheerio`、`dotenv`、`express`、`zod`
 
 ### 2.2 安装与启动
 
 ```bash
-cd /Users/mac/code/git/0720nocode_all/mcp-site-server/mcp-yujian-server
-/Users/mac/.workbuddy/binaries/node/versions/22.22.2-3/bin/npm install
+cd mcp-yujian-server
+cp .env.example .env
+npm install
 
-# 启动（stdio 模式，启动后等待 stdin 的 JSON-RPC，不会打印任何东西——这是正常的）
-/Users/mac/.workbuddy/binaries/node/versions/22.22.2-3/bin/node index.js
+# stdio：启动后等待 stdin 的 JSON-RPC，不会打印任何东西——这是正常的
+npm start
+
+# Streamable HTTP：默认 0.0.0.0:3333
+npm run start:http
 ```
 
 ### 2.3 配置（.env）
 
+与 `.env.example` 一致。`YUJIAN_API_TOKEN` 留空时不发送 `Authorization`（当前 member 端点公开）。私有端点再填写。不要把本机目录写进 `.env`。
+
 ```ini
 YUJIAN_API_BASE=https://api.yjnt111.top
-YUJIAN_API_TOKEN=YOUR_TOKEN_HERE      # member 端点公开，当前非必需；未来接私有端点时填
+YUJIAN_API_TOKEN=
 YUJIAN_SEARCH_PATH=/api/member/article/list
 YUJIAN_DETAIL_PATH=/api/member/article
-YUJIAN_API_TIMEOUT=15000              # 请求超时 ms
-YUJIAN_MAX_CONTENT_CHARS=20000        # 正文截断长度，防 LLM 上下文溢出
+YUJIAN_API_TIMEOUT=15000
+YUJIAN_MAX_CONTENT_CHARS=20000
+PORT=3333
+HOST=0.0.0.0
 ```
 
 ### 2.4 开发铁律（避坑）
@@ -88,21 +103,22 @@ YUJIAN_MAX_CONTENT_CHARS=20000        # 正文截断长度，防 LLM 上下文�
 ### 3.1 冒烟测试（推荐，30 秒验证全链路）
 
 ```bash
-cd /Users/mac/code/git/0720nocode_all/mcp-site-server/mcp-yujian-server
-/Users/mac/.workbuddy/binaries/node/versions/22.22.2-3/bin/node smoke-test.js
+npm run smoke
 ```
 
-脚本直接 spawn 子进程、走标准 JSON-RPC（initialize → tools/list → tools/call），验证：
+脚本直接 spawn 子进程、走标准 JSON-RPC（initialize → tools/list → tools/call）。任一步失败（缺工具、工具 `isError`、stdout 非 JSON）进程退出码为 1。验证：
 
-- server 正常启动、工具注册齐全；
-- `search_post(keyword="MLCC")` 真实命中（当前 total=17 量级）；
+- server 正常启动、工具注册齐全（`search_post`、`get_post_detail`）；
+- `search_post(keyword="MLCC")` 返回带文章 ID 的列表；
 - `get_post_detail(post_id=2410)` 返回清洗后正文；
 - **stdout 无任何非 JSON 行**（出现「非JSON行」警告 = 有代码污染 stdout，必须修）。
+
+HTTP 入口另跑：`npm run smoke:http`（默认 `http://127.0.0.1:3333`，需先 `npm run start:http`）。远程验收：`node http-smoke-test.js https://mcp-yujian-server.xyxbot.com`。WorkBuddy 接入步骤见 `doc/workbuddy-mcp.md`。
 
 ### 3.2 看日志
 
 ```bash
-tail -f mcp-yujian-server/mcp-debug.log
+tail -f mcp-debug.log
 ```
 
 每行含时间戳，记录：启动事件、每次 GET 的路径与参数、HTTP 状态、返回体 keys、命中数、异常栈。排障第一现场。
@@ -110,8 +126,7 @@ tail -f mcp-yujian-server/mcp-debug.log
 ### 3.3 MCP Inspector（交互式调试 UI）
 
 ```bash
-cd mcp-yujian-server
-npx @modelcontextprotocol/inspector /Users/mac/.workbuddy/binaries/node/versions/22.22.2-3/bin/node index.js
+npx @modelcontextprotocol/inspector node index.js
 ```
 
 浏览器打开 Inspector，可以：图形化查看 tools 列表和 JSON-Schema、手工填参调用、看原始请求/响应帧。**调工具参数 schema 时用它最方便。**
@@ -137,8 +152,9 @@ curl 'https://api.yjnt111.top/api/member/article/2410'
 | 提示「API 鉴权失败(401)」 | token 缺失/过期（若未来接私有端点） | 更新 .env 的 YUJIAN_API_TOKEN 后重启 |
 | 一直「未找到文章」 | 端点路径错（如 /api/articles） | 核对 .env 两个 PATH 是否为 /api/member/article/list 和 /api/member/article |
 | 请求挂起无响应 | 网络超时 | 看 .env TIMEOUT；curl 验证 API 可达性 |
+| smoke 报「API 返回 HTTP 405」 | 上游拒绝了这次请求 | 用 3.4 的 curl 对照；MCP 进程不应崩溃，stdout 仍须是 JSON |
 | 正文被截断 | 触发 20000 字符上限 | 调用 get_post_detail 时传 max_length（上限 50000） |
-| 依赖装不上 | 用了系统 Node 12 | 必须用托管 Node 22 的绝对路径 |
+| 依赖装不上 / 语法报错 | Node 低于 20 | `node -v` 确认 ≥ 20；不要把某台机器的 Node 绝对路径写进仓库 |
 
 ---
 
@@ -153,17 +169,19 @@ curl 'https://api.yjnt111.top/api/member/article/2410'
   "mcpServers": {
     "yujian-ai": {
       "type": "stdio",
-      "command": "/Users/mac/.workbuddy/binaries/node/versions/22.22.2-3/bin/node",
-      "args": ["/Users/mac/code/git/0720nocode_all/mcp-site-server/mcp-yujian-server/index.js"]
+      "command": "node",
+      "args": ["<本仓库绝对路径>/index.js"]
     }
   }
 }
 ```
 
 要点：
-- `command` 用 **Node 绝对路径**，避免 PATH 环境不一致导致起不来；
-- 已存在的其它服务器（如 scys-mcp）保留，不要整个覆盖；
-- 改完 JSON 后可用 `python3 -m json.tool ~/.workbuddy/mcp.json` 校验格式。
+- `command` 使用本机 PATH 中的 Node ≥ 20。若图形客户端 PATH 里没有 `node`，把 `command` 换成 `command -v node` 的输出，且不要把该路径提交进仓库；
+- `args` 换成克隆目录下的 `index.js`，不要提交个人机器路径；
+- 已存在的其它服务器保留，不要整个覆盖；
+- 改完 JSON 后可用 `python3 -m json.tool ~/.workbuddy/mcp.json` 校验格式；
+- Trust 之前先在仓库根目录执行 `npm run smoke`。逐步说明见 `doc/workbuddy-mcp.md`。
 
 ### 4.2 启用（Trust）
 
@@ -188,7 +206,7 @@ curl 'https://api.yjnt111.top/api/member/article/2410'
   "mcpServers": {
     "yujian-ai": {
       "command": "node",
-      "args": ["/Users/mac/code/git/0720nocode_all/mcp-site-server/mcp-yujian-server/index.js"]
+      "args": ["<本仓库绝对路径>/index.js"]
     }
   }
 }
@@ -198,34 +216,23 @@ curl 'https://api.yjnt111.top/api/member/article/2410'
 
 ---
 
-## 五、线上部署（规划：stdio → Streamable HTTP）
+## 五、线上部署（Streamable HTTP）
 
-> 当前 MVP 是 stdio 本地模式，只适合「客户端和 server 同机」。要支持远程/多端/网页客户端，按本节升级为 Streamable HTTP 传输。
+> stdio 适合客户端与 server 同机。远程/多端使用已经落地的 `http-server.js`。逐步上线见 `doc/deploy-runbook.md`。
 
-### 5.1 改造步骤
+### 5.1 现有入口与上线
 
-1. **加 HTTP 传输层**：新增 `http-server.js`，用 express + `StreamableHTTPServerTransport` 替换 `StdioServerTransport`（工具注册代码 index.js 完全复用，只换传输）：
+HTTP 与 stdio 共用 `createServer.js`。`http-server.js` 使用 SDK 的 `createMcpExpressApp`（含 DNS 重绑定防护）和无状态 `StreamableHTTPServerTransport`（`enableJsonResponse: true`）。
 
-```js
-import express from "express";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+- 启动：`npm run start:http`。默认监听 `0.0.0.0:3333`，用环境变量 `HOST` / `PORT` 覆盖。
+- `POST /mcp`：MCP Streamable HTTP。
+- `GET /healthz`：`{"ok":true,"service":"yujian-ai",...}`。
+- 本机冒烟：先启动再 `npm run smoke:http`。
+- `allowedHosts` 写在 `http-server.js`，当前包含 `mcp-yujian-server.xyxbot.com`、`localhost`、`127.0.0.1`。
 
-const app = express();
-app.use(express.json());
-
-app.post("/mcp", async (req, res) => {
-  // 每个会话一个 transport；无状态部署也可每次请求新建（见 SDK 示例 mcpStreamableHttp.ts）
-  const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-  await server.connect(transport);
-  await transport.handleRequest(req, res);
-});
-
-app.listen(3333, "127.0.0.1"); // 只绑本机，外部走 nginx 反代
-```
-
-2. **进程守护**：`pm2 start http-server.js --name yujian-mcp`（开机自启 `pm2 startup && pm2 save`）。
-3. **TLS 与反代**：nginx 把 `https://你的域名/mcp` 反代到 `127.0.0.1:3333`；生产必须 HTTPS（多数 MCP 客户端拒绝明文 http 远程连接）。
-4. **配置切换**：客户端 mcp.json 改为：
+1. **进程守护**：`pm2 start http-server.js --name yujian-mcp`（开机自启 `pm2 startup && pm2 save`）。
+2. **TLS 与反代**：nginx 把 `https://你的域名/mcp` 反代到本机 `3333`；生产必须 HTTPS（多数 MCP 客户端拒绝明文 http 远程连接）。
+3. **配置切换**：客户端 mcp.json 改为：
 
 ```json
 {
@@ -238,7 +245,7 @@ app.listen(3333, "127.0.0.1"); // 只绑本机，外部走 nginx 反代
 }
 ```
 
-5. （可选）按 pland.md 后续迭代：MySQL 定时同步 + 本地缓存优先、Redis 限流缓存。
+4. （可选）按 pland.md 后续迭代：MySQL 定时同步 + 本地缓存优先、Redis 限流缓存。
 
 ### 5.2 部署清单
 
@@ -255,7 +262,7 @@ app.listen(3333, "127.0.0.1"); // 只绑本机，外部走 nginx 反代
 
 线上 stdio 不适用，调试手段按优先级：
 
-1. **文件日志**（第一现场）：`pm2 logs yujian-mcp` 或服务器上 `tail -f mcp-yujian-server/mcp-debug.log`。所有 API 调用、状态码、异常栈都在这里。
+1. **文件日志**（第一现场）：`pm2 logs yujian-mcp` 或服务器上 `tail -f /opt/mcp-yujian-server/mcp-debug.log`。所有 API 调用、状态码、异常栈都在这里。
 2. **Inspector 连远程**：`npx @modelcontextprotocol/inspector`，Transport 选 Streamable HTTP，URL 填 `https://你的域名/mcp` —— 生产环境也能图形化手工调工具。
 3. **curl 复现**：绕开 MCP 层直接打远程研报 API（3.4 节命令），快速二分「是我们 server 的问题还是上游 API 的问题」。
 4. **业务码陷阱**：线上最常见故障是 token 过期——表现是 HTTP 200 但 `code:401`，MCP 侧会返回友好提示「请更新 YUJIAN_API_TOKEN」。看到这个就查 token。
@@ -297,12 +304,13 @@ WorkBuddy 会自动：`search_post(keyword="PCB")` → 对重点条目 `get_post
 ## 附：快速命令备忘
 
 ```bash
-NODE=/Users/mac/.workbuddy/binaries/node/versions/22.22.2-3/bin/node
-cd /Users/mac/code/git/0720nocode_all/mcp-site-server/mcp-yujian-server
-
-$NODE index.js          # 启动（stdio）
-$NODE smoke-test.js     # 冒烟测试
-npx @modelcontextprotocol/inspector $NODE index.js   # Inspector 调试 UI
-tail -f mcp-debug.log   # 看日志
-curl 'https://api.yjnt111.top/api/member/article/list?keyword=MLCC&pageNum=1&pageSize=5'  # 直连 API
+cp .env.example .env
+npm install
+npm start                              # stdio
+npm run smoke                          # stdio 冒烟（不经客户端）
+npm run start:http                     # Streamable HTTP
+npm run smoke:http                     # HTTP 冒烟，需服务已监听
+npx @modelcontextprotocol/inspector node index.js
+tail -f mcp-debug.log
+curl 'https://api.yjnt111.top/api/member/article/list?keyword=MLCC&pageNum=1&pageSize=5'
 ```

@@ -10,8 +10,8 @@ dotenv.config({ path: path.join(__dirname, "..", ".env") });
 export const CONF = {
   base: process.env.YUJIAN_API_BASE || "https://api.yjnt111.top",
   token: process.env.YUJIAN_API_TOKEN || "",
-  searchPath: process.env.YUJIAN_SEARCH_PATH || "/api/articles",
-  detailPath: process.env.YUJIAN_DETAIL_PATH || "/api/articles",
+  searchPath: process.env.YUJIAN_SEARCH_PATH || "/api/member/article/list",
+  detailPath: process.env.YUJIAN_DETAIL_PATH || "/api/member/article",
   timeout: Number(process.env.YUJIAN_API_TIMEOUT || 15000),
   maxChars: Number(process.env.YUJIAN_MAX_CONTENT_CHARS || 20000),
 };
@@ -34,6 +34,7 @@ export function friendlyError(err, url) {
   }
   if (status === 429) return "API 限流(429)：请求过于频繁，请稍后重试。";
   if (status && status >= 500) return `API 服务端错误(HTTP ${status})，请稍后重试。`;
+  if (status) return `API 返回 HTTP ${status}（${url}）。可先用 curl 区分是上游拒绝还是 MCP 映射问题。`;
   if (err.code === "ECONNABORTED") return `请求超时(${CONF.timeout}ms)：远程 API 无响应。`;
   if (err.code) return `网络错误(${err.code})：无法连接 ${CONF.base}`;
   return `请求 ${url} 失败：${err.message || "未知错误"}`;

@@ -27,7 +27,7 @@ api.yjnt111.top 研报 API（公开，无需 token）
 | 入口 | `http-server.js` |
 | 监听 | `0.0.0.0:3333` |
 | MCP 端点 | `POST /mcp` |
-| 像康检查 | `GET /healthz` → `{"ok":true,...}` |
+| 健康检查 | `GET /healthz` → `{"ok":true,...}` |
 | 进程守护 | pm2（命名 `yujian-mcp`） |
 | 日志 | `mcp-debug.log`（业务日志）+ pm2 日志 |
 
@@ -49,16 +49,16 @@ api.yjnt111.top 研报 API（公开，无需 token）
 只上传源码文件，不传 node_modules：
 
 ```bash
-# 本地执行（在项目父目录）
-cd /Users/mac/code/git/0720nocode_all/mcp-site-server
-tar --exclude='mcp-yujian-server/node_modules' \
-    --exclude='mcp-yujian-server/mcp-debug.log' \
-    --exclude='mcp-yujian-server/package-lock.json' \
-    -czf /tmp/mcp-yujian-server.tar.gz mcp-yujian-server
+# 在本仓库根目录执行。不打包依赖、日志和本机 .env（含 token）。
+tar --exclude='node_modules' \
+    --exclude='mcp-debug.log' \
+    --exclude='.env' \
+    -czf /tmp/mcp-yujian-server.tar.gz .
 
 scp /tmp/mcp-yujian-server.tar.gz root@你的服务器IP:/opt/
 ssh root@你的服务器IP
-mkdir -p /opt/mcp-yujian-server && tar -xzf /opt/mcp-yujian-server.tar.gz -C /opt/ --strip-components=1 -C /opt/mcp-yujian-server
+mkdir -p /opt/mcp-yujian-server
+tar -xzf /opt/mcp-yujian-server.tar.gz -C /opt/mcp-yujian-server
 cd /opt/mcp-yujian-server
 ```
 
@@ -96,7 +96,7 @@ pm2 startup   # 按提示复制执行输出的命令，实现开机自启
 pm2 logs yujian-mcp --lines 20   # 确认 listening on 0.0.0.0:3333
 ```
 
-### 步骤艾 5：域名链路验收
+### 步骤 5：域名链路验收
 
 ```bash
 curl https://mcp-yujian-server.xyxbot.com/healthz
@@ -119,7 +119,7 @@ node http-smoke-test.js https://mcp-yujian-server.xyxbot.com
 - [ ] `mcp-debug.log` 配 logrotate（见运维小节）
 - [ ] 如 nginx 层可配：`proxy_read_timeout 300s`（防长文工具调用超时）；如无权改 nginx，跳过
 - [ ] 可选：域名接入 CDN/防火墙时放行 POST /mcp
-- 验收通过后，用 doc/doubao-test.md 走豆包实测。
+- 验收通过后，用 doc/doubao-test.md 走豆包实测；WorkBuddy 本地 stdio 见 doc/workbuddy-mcp.md。
 
 ---
 

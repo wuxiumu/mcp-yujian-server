@@ -65,6 +65,10 @@ const search = await rpc("tools/call", {
 const sText = search.data?.result?.content?.[0]?.text || "";
 console.log("== search_post(储能):", search.status, `isError=${search.data?.result?.isError === true}`);
 console.log(sText.slice(0, 220));
+if (search.status !== 200 || search.data?.result?.isError === true || !/\[\d+\]/.test(sText)) {
+  console.error("!! search_post 未返回带文章 ID 的列表");
+  process.exit(1);
+}
 
 // 5. tools/call: get_post_detail
 const detail = await rpc("tools/call", {
@@ -74,5 +78,9 @@ const detail = await rpc("tools/call", {
 const dText = detail.data?.result?.content?.[0]?.text || "";
 console.log("== get_post_detail(2410):", detail.status, `isError=${detail.data?.result?.isError === true}`);
 console.log(dText.slice(0, 220));
+if (detail.status !== 200 || detail.data?.result?.isError === true || !dText.trim()) {
+  console.error("!! get_post_detail 未返回正文");
+  process.exit(1);
+}
 
 console.log("\nHTTP 冒烟测试完成。");
