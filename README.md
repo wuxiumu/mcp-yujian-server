@@ -4,6 +4,8 @@
 
 **定制：** 微信 **qingbao199101**（备注：MCP研报）｜ [wuxiumu@163.com](mailto:wuxiumu@163.com)
 
+> **安装提示：** 下文命令使用相对目录与系统 `node`/`npm`，勿依赖某台机器的私有绝对路径。
+
 > 本地开发 · 调试 · WorkBuddy 集成 · 线上部署 · 生产调试 · 日报用法
 > 数据源：yujian.ai 研报（远程 API：api.yjnt111.top，RuoYi 风格，公开端点无需 token）
 
@@ -54,17 +56,18 @@ mcp-yujian-server/
 
 ### 2.1 环境要求
 
-- Node.js ≥ 20（本机用托管版：`/Users/mac/.workbuddy/binaries/node/versions/22.22.2-3/bin/node`）
+- Node.js ≥ 20（推荐 22 LTS；系统 `node` / `npm` 即可）
 - 依赖：`@modelcontextprotocol/sdk`、`axios`、`cheerio`、`dotenv`、`zod`
 
 ### 2.2 安装与启动
 
 ```bash
-cd /Users/mac/code/git/0720nocode_all/mcp-site-server/mcp-yujian-server
-/Users/mac/.workbuddy/binaries/node/versions/22.22.2-3/bin/npm install
+cd mcp-yujian-server
+npm install
 
 # 启动（stdio 模式，启动后等待 stdin 的 JSON-RPC，不会打印任何东西——这是正常的）
-/Users/mac/.workbuddy/binaries/node/versions/22.22.2-3/bin/node index.js
+npm start
+# 或：node index.js
 ```
 
 ### 2.3 配置（.env）
@@ -92,8 +95,9 @@ YUJIAN_MAX_CONTENT_CHARS=20000        # 正文截断长度，防 LLM 上下文�
 ### 3.1 冒烟测试（推荐，30 秒验证全链路）
 
 ```bash
-cd /Users/mac/code/git/0720nocode_all/mcp-site-server/mcp-yujian-server
-/Users/mac/.workbuddy/binaries/node/versions/22.22.2-3/bin/node smoke-test.js
+cd mcp-yujian-server
+npm run smoke
+# 或：node smoke-test.js
 ```
 
 脚本直接 spawn 子进程、走标准 JSON-RPC（initialize → tools/list → tools/call），验证：
@@ -115,7 +119,7 @@ tail -f mcp-yujian-server/mcp-debug.log
 
 ```bash
 cd mcp-yujian-server
-npx @modelcontextprotocol/inspector /Users/mac/.workbuddy/binaries/node/versions/22.22.2-3/bin/node index.js
+npx @modelcontextprotocol/inspector node index.js
 ```
 
 浏览器打开 Inspector，可以：图形化查看 tools 列表和 JSON-Schema、手工填参调用、看原始请求/响应帧。**调工具参数 schema 时用它最方便。**
@@ -157,8 +161,8 @@ curl 'https://api.yjnt111.top/api/member/article/2410'
   "mcpServers": {
     "yujian-ai": {
       "type": "stdio",
-      "command": "/Users/mac/.workbuddy/binaries/node/versions/22.22.2-3/bin/node",
-      "args": ["/Users/mac/code/git/0720nocode_all/mcp-site-server/mcp-yujian-server/index.js"]
+      "command": "node",
+      "args": ["mcp-yujian-server/index.js"]
     }
   }
 }
@@ -192,7 +196,7 @@ curl 'https://api.yjnt111.top/api/member/article/2410'
   "mcpServers": {
     "yujian-ai": {
       "command": "node",
-      "args": ["/Users/mac/code/git/0720nocode_all/mcp-site-server/mcp-yujian-server/index.js"]
+      "args": ["mcp-yujian-server/index.js"]
     }
   }
 }
@@ -301,8 +305,8 @@ WorkBuddy 会自动：`search_post(keyword="PCB")` → 对重点条目 `get_post
 ## 附：快速命令备忘
 
 ```bash
-NODE=/Users/mac/.workbuddy/binaries/node/versions/22.22.2-3/bin/node
-cd /Users/mac/code/git/0720nocode_all/mcp-site-server/mcp-yujian-server
+NODE=node
+cd mcp-yujian-server
 
 $NODE index.js          # 启动（stdio）
 $NODE smoke-test.js     # 冒烟测试
