@@ -1,12 +1,17 @@
 {
   "name": "mcp-yujian-server",
   "version": "1.0.0",
-  "description": "MCP stdio server for yujian.ai research articles via remote API",
+  "description": "MCP server for yujian.ai research articles (stdio + Streamable HTTP)",
   "type": "module",
   "main": "index.js",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node index.js",
-    "smoke": "node smoke-test.js"
+    "start:http": "node http-server.js",
+    "smoke": "node smoke-test.js",
+    "smoke:http": "node http-smoke-test.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",

@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
  * 冒烟测试：不经 Claude/WorkBuddy，直接用 JSON-RPC over stdio 驱动 MCP server
- * 验证 initialize → tools/list → tools/call（search_post 应返回友好 401 提示而非崩溃）
- * 用法：node smoke-test.js
+ * 验证 initialize → tools/list → tools/call。
+ * 公开 member 端点应返回文章列表与正文；协议错误或工具 isError 时退出码为 1。
+ * 用法：npm run smoke
  */
 import { spawn } from "node:child_process";
 import path from "node:path";
@@ -58,6 +59,13 @@ const timeout = setTimeout(() => {
   process.exit(1);
 }, 30000);
 
+function fail(msg) {
+  console.error("!!", msg);
+  clearTimeout(timeout);
+  child.kill();
+  process.exit(1);
+}
+
 const init = await request("initialize", {
   protocolVersion: "2024-11-05",
   capabilities: {},
@@ -65,9 +73,14 @@ const init = await request("initialize", {
 });
 send({ jsonrpc: "2.0", method: "notifications/initialized" });
 console.log("== initialize:", init.result?.serverInfo);
+if (!init.result?.serverInfo?.name) fail("initialize 未返回 serverInfo");
 
 const tools = await request("tools/list", {});
-console.log("== tools:", tools.result?.tools?.map((t) => t.name).join(", "));
+const names = tools.result?.tools?.map((t) => t.name) || [];
+console.log("== tools:", names.join(", "));
+for (const need of ["search_post", "get_post_detail"]) {
+  if (!names.includes(need)) fail(`tools/list 缺少 ${need}`);
+}
 
 const search = await request("tools/call", {
   name: "search_post",
@@ -76,14 +89,22 @@ const search = await request("tools/call", {
 const text = search.result?.content?.[0]?.text || "";
 console.log("== search_post isError:", search.result?.isError === true);
 console.log("== search_post 返回前200字:", text.slice(0, 200));
+if (search.result?.isError === true || !/\[\d+\]/.test(text)) {
+  fail("search_post 未返回带文章 ID 的列表");
+}
 
 const detail = await request("tools/call", {
   name: "get_post_detail",
   arguments: { post_id: 2410 },
 });
+const detailText = detail.result?.content?.[0]?.text || "";
 console.log("== get_post_detail isError:", detail.result?.isError === true);
-console.log("== get_post_detail 返回前200字:", (detail.result?.content?.[0]?.text || "").slice(0, 200));
+console.log("== get_post_detail 返回前200字:", detailText.slice(0, 200));
+if (detail.result?.isError === true || !detailText.trim()) {
+  fail("get_post_detail 未返回正文");
+}
 
 clearTimeout(timeout);
 child.kill();
+if (process.exitCode) process.exit(process.exitCode);
 console.log("\n冒烟测试完成：进程正常收发 JSON-RPC，无 stdout 污染。");
