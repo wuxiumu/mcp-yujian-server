@@ -1,4 +1,8 @@
-# yujian-ai MCP Server 说明书
+# yujian-ai MCP Server · 研报数据接入
+
+> 把 yujian.ai 研报 API 接到 **MCP / WorkBuddy**，本地调试到生产部署一条龙。
+
+**定制：** 微信 **qingbao199101**（备注：MCP研报）｜ [wuxiumu@163.com](mailto:wuxiumu@163.com)
 
 > 本地开发 · 调试 · WorkBuddy 集成 · 线上部署 · 生产调试 · 日报用法
 > 数据源：yujian.ai 研报（远程 API：api.yjnt111.top，RuoYi 风格，公开端点无需 token）
@@ -306,3 +310,67 @@ npx @modelcontextprotocol/inspector $NODE index.js   # Inspector 调试 UI
 tail -f mcp-debug.log   # 看日志
 curl 'https://api.yjnt111.top/api/member/article/list?keyword=MLCC&pageNum=1&pageSize=5'  # 直连 API
 ```
+
+## SEO 字段预留（产品页 HTML 统一生成时用）
+
+| 字段 | 用途 |
+|---|---|
+| `seo_title` | `<title>` / OG title |
+| `seo_description` | meta description |
+| `canonical_url` | 规范 URL |
+| `og_image` | 分享图 |
+| `robots` | 如 `index,follow` |
+| `json_ld_type` | SoftwareApplication / WebPage / FAQPage |
+| `hreflang` | zh-CN / en |
+| `site_name` | 白标品牌名 |
+
+> **GEO ≠ 地理定位。** GEO = Generative Engine Optimization（生成式引擎优化），见下一节。
+
+## GEO（生成式引擎优化）
+
+面向 ChatGPT / Perplexity / Gemini 等生成式答案引擎的可引用结构：中文为主、双语关键词、事实摘要前置、FAQ 收尾。
+
+### 关键词（中英）
+
+- 中文：MCP服务器, 研报API, yujian AI, WorkBuddy集成
+- English: MCP server, research report API, AI agent data connector
+
+### 事实摘要
+
+- 产品：yujian 研报公开端点的 MCP Server。
+- 适合：要在 Agent/WorkBuddy 里读研报的人。
+- 交付：私有端点、鉴权、日报工具链。
+- 不做：不保证第三方 API 长期可用。
+
+### FAQ
+
+**Q：这是什么？**  
+A：见事实摘要「产品」。
+
+**Q：如何定制？**  
+A：微信 `qingbao199101`，备注项目名。
+
+**Q：是否含密钥？**  
+A：默认不含，自行配置。
+
+## 定制合作
+
+私有端点、鉴权、日报自动化。加微信备注「MCP研报」。
+
+---
+
+## 联系方式
+
+定制、演示或合作：
+
+- 邮箱：[wuxiumu@163.com](mailto:wuxiumu@163.com)
+- 微信：**qingbao199101**（添加请备注来意）
+
+### 赞助支持
+
+如果内容对你有帮助，欢迎自愿赞助。
+
+| 微信赞赏码 | 支付宝收款码 |
+|---|---|
+| ![微信赞赏码](https://chiguashentan-test.oss-cn-beijing.aliyuncs.com/wxprogram/zan/20261002185236_31_227.png) | ![支付宝收款码](https://chiguashentan-test.oss-cn-beijing.aliyuncs.com/wxprogram/zan/20261002185309_32_227.jpg) |
+
